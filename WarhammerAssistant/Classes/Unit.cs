@@ -9,8 +9,9 @@ public class Unit
     public bool IsDestroyed { get; private set; }
     public int WoundsPerModel { get; }
     public bool IsBattleShocked { get; private set; }
-    public Unit? IsLockedInCombat { get; private set; }
+    public List<Unit> IsLockedInCombat { get; private set; }
     public bool CanShoot { get; private set; }
+    public bool CanCharge { get; private set; }
     public bool IsInReserves { get; private set; }
     public bool IsAttached { get; private set; }
     public List<Unit>? AttachedUnits { get; }
@@ -49,6 +50,8 @@ public class Unit
         IsBattleShocked = false;
         IsLockedInCombat = null;
         CanShoot = true;
+        CanCharge = true;
+        IsLockedInCombat = new List<Unit>();
         this.RangedWeapons = RangedWeapons;
         this.MeleeWeapons = MeleeWeapons;
         this.Movement = Movement;
@@ -96,17 +99,68 @@ public class Unit
             AttachedUnit.IsAttached = true;
         }
     }
+    public void Moved()
+    {
+        this.IsLockedInCombat = null;
+        this.CanShoot = true;
+        this.CanCharge = true;
+    }
+    public void Advanced()
+    {
+        this.IsLockedInCombat = null;
+        this.CanShoot = false;
+        this.CanCharge = false;
+    }
+    public void FellBack()
+    {
+        this.IsLockedInCombat = null;
+        this.CanShoot = false;
+        this.CanCharge = false;
+    }
+    public void RemainedStationary()
+    {
+        this.CanShoot = true;
+        this.CanCharge = true;
+    }
 
+    public void EngageInMelee(Unit unit)
+    {
+        this.IsLockedInCombat.Add(unit);
+    }
+    public void LeaveMeleeCombat(Unit unit)
+    {
+        this.IsLockedInCombat.Remove(unit);
+    }
     public void ResolveAttack(int modelsDestroyed, int additionalWounds)
     {
         this.RemainingModels -= modelsDestroyed;
         if (this.RemainingModels <= 0)
         {
             this.IsDestroyed = true;
+            this.RemainingModels = 0;
+            this.AdditionalCurrentWounds = 0;
         }
         else
         {
-            this.AdditionalCurrentWounds = additionalWounds;
+            if (additionalWounds + this.AdditionalCurrentWounds < WoundsPerModel)
+            {
+                this.AdditionalCurrentWounds += additionalWounds;
+            }
+            else if (additionalWounds + this.AdditionalCurrentWounds >= WoundsPerModel)
+            {
+                this.AdditionalCurrentWounds = WoundsPerModel;
+                this.RemainingModels -= 1;
+                if (this.RemainingModels <= 0)
+                {
+                    this.RemainingModels = 0;
+                    this.IsDestroyed = true;
+                }
+
+            }
+            else
+            {
+                this.AdditionalCurrentWounds = 0;
+            }
         }
 
     }

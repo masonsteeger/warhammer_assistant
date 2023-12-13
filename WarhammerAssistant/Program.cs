@@ -9,10 +9,33 @@
             var player1 = new Player("Mason", units[0]);
             var player2 = new Player("Kylie", units[1]);
 
+
+            // var player1 = new Player("Mason", new List<Unit> { units[0][0] });
+            // var player2 = new Player("Kylie", new List<Unit> { units[1][0] });
+            Console.CursorVisible = false;
+            Console.OutputEncoding = System.Text.Encoding.UTF8;
+            // Console.Language = System.Globalization.CultureInfo.CurrentCulture;
             var game = new Game(player1, player2);
-            ShootingLoop(player1, player2);
 
+            var playShouldContinue = true;
 
+            while (playShouldContinue)
+            {
+                var attacker = game.PlayerOrder[game.PlayerOnesTurn ? 0 : 1];
+                var defender = game.PlayerOrder[game.PlayerOnesTurn ? 1 : 0];
+                CommandLoop(game);
+                MovementLoop(game);
+                ShootingLoop(game);
+                ChargeLoop(game, attacker, defender);
+                FightLoop(game, attacker, defender);
+                ChargeLoop(game, defender, attacker);
+                FightLoop(game, defender, attacker);
+                playShouldContinue = ChangeRound(game);
+            }
+
+            Console.WriteLine("Game Over {0} wins!", player1.Units.FindAll((unit) => unit.RemainingModels > 0).Count != 0 ? player1.PlayerName : player2.PlayerName);
+            Console.CursorVisible = true;
+            // Console.OutputEncoding = System.Text.Encoding.Default;
         }
         static List<List<Unit>> LoadUnits()
         {
@@ -215,7 +238,6 @@
             );
             var bioCannonBarb = new Weapon(
                 "Bio-Cannon",
-
                 false,
                 new List<string> { "Blast", "Heavy" },
                 24, "D6", 4, 5, 0, "1"
@@ -333,26 +355,26 @@
             /////////////////////////////////////////////////////////////////////////////
 
             var marineList = new List<Unit> {
-                captainInTerminatorArmour,
-                lieutenantWithCombiWeapon,
-                librarianInTerminatorArmour,
-                apothecaryBiologis,
+                // captainInTerminatorArmour,
+                // lieutenantWithCombiWeapon,
+                // librarianInTerminatorArmour,
+                // apothecaryBiologis,
                 terminators,
-                sternguardVeterans,
-                infernusMarines,
-                ballistusDreadnought
+                // sternguardVeterans,
+                // infernusMarines,
+                // ballistusDreadnought
             };
 
             var tyranidList = new List<Unit> {
                 termagants,
-                neurogaunts,
-                barbgaunts,
-                rippers,
-                vonRyansLeapers,
-                screamerKiller,
-                psychophage,
-                wingedTyranidPrime,
-                neurotyrant
+                // neurogaunts,
+                // barbgaunts,
+                // rippers,
+                // vonRyansLeapers,
+                // screamerKiller,
+                // psychophage,
+                // wingedTyranidPrime,
+                // neurotyrant
             };
 
 
@@ -363,62 +385,219 @@
 
             //////////////////////////////////////////////////////////////////////////
         }
-        static void ShootingLoop(Player attacker, Player defender)
+        static bool ChangeRound(Game game)
         {
-            attacker.AddUnitsToAct(attacker.Units);
-            while (attacker.UnitsToAct.Count != 0)
+            var player1 = game.PlayerOrder[0];
+            var player2 = game.PlayerOrder[1];
+            game.CurrentRound++;
+            game.PlayerOnesTurn = !game.PlayerOnesTurn;
+            var armyNotEliminated =
+                player1.Units.FindAll((unit) => unit.RemainingModels > 0).Count != 0 &&
+                player2.Units.FindAll((unit) => unit.RemainingModels > 0).Count != 0;
+            var maxRoundNotReached = game.CurrentRound < 6;
+
+            return armyNotEliminated && maxRoundNotReached;
+        }
+        static void CommandLoop(Game game)
+        {
+            game.Phase = Phase.Movement;
+        }
+        static void MovementLoop(Game game)
+        {
+            var player = game.PlayerOrder[game.PlayerOnesTurn ? 0 : 1];
+            player.AddUnitsToAct(player.Units.FindAll((unit) => unit.RemainingModels > 0));
+            while (player.UnitsToAct.Count > 0)
             {
                 var currentUnitIndex = 0;
                 var hasSelectedUnit = false;
                 while (!hasSelectedUnit)
                 {
-                    ConsoleMenu.BuildStartMenu(attacker, defender);
-                    ConsoleMenu.ListUnits(attacker.UnitsToAct, currentUnitIndex);
-                    (currentUnitIndex, hasSelectedUnit) = ConsoleMenu.ListKeyListener(currentUnitIndex, attacker.UnitsToAct.Count - 1);
+                    ConsoleMenu.BuildStatusMenu(game);
+                    ConsoleMenu.ListUnits(player.UnitsToAct, currentUnitIndex, "Select a unit to move: ");
+                    (currentUnitIndex, hasSelectedUnit, var keyPressed) = ConsoleMenu.ListKeyListener(currentUnitIndex, player.UnitsToAct.Count - 1);
+                    if (keyPressed == ConsoleKey.End)
+                    {
+                        player.UnitsToAct.Clear();
+                        game.Phase = Phase.Command;
+                        return;
+                    }
+                }
+                var selectedUnit = player.UnitsToAct[currentUnitIndex];
+                player.UnitsToAct.Remove(selectedUnit);
+
+                var movementOptions = new List<string>() { };
+                if (selectedUnit.IsLockedInCombat != null)
+                {
+                    if (selectedUnit.IsBattleShocked)
+                    {
+                        movementOptions.AddRange(new List<string>() { MoveOptions.DesperateEscape, MoveOptions.RemainStationary });
+                    }
+                    else
+                    {
+                        movementOptions.AddRange(new List<string>() { MoveOptions.FallBack, MoveOptions.DesperateEscape, MoveOptions.RemainStationary });
+                    }
+                }
+                else
+                {
+                    movementOptions.AddRange(new List<string>() { MoveOptions.Move, MoveOptions.Advance, MoveOptions.RemainStationary });
+                }
+                var hasMoved = false;
+                var movementOptionIndex = 0;
+
+                while (!hasMoved)
+                {
+                    ConsoleMenu.BuildStatusMenu(game);
+                    ConsoleMenu.BuildMovementMenu(selectedUnit, movementOptions, movementOptionIndex);
+                    (movementOptionIndex, hasMoved, var keyPressed) = ConsoleMenu.ListKeyListener(movementOptionIndex, movementOptions.Count - 1);
+
+                };
+                ConsoleMenu.BuildStatusMenu(game);
+                var needsToMakeDesperateEscapeCheck = ConsoleMenu.BuildMovementOptionDirections(selectedUnit, movementOptions[movementOptionIndex]);
+
+                if (needsToMakeDesperateEscapeCheck)
+                {
+                    var modelsKilled = 0;
+                    var completedDesperateEscapeCheck = false;
+                    while (!completedDesperateEscapeCheck)
+                    {
+                        ConsoleMenu.BuildStatusMenu(game);
+                        ConsoleMenu.BuildMovementOptionDirections(selectedUnit, movementOptions[movementOptionIndex]);
+                        (modelsKilled, completedDesperateEscapeCheck) = ConsoleMenu.DesperateEscapeListener(selectedUnit, modelsKilled);
+                        continue;
+                    }
+                    selectedUnit.ResolveAttack(modelsKilled, 0);
+                }
+                else
+                {
+                    while (!ConsoleMenu.ContinueListener())
+                    {
+                        continue;
+                    }
+                }
+
+
+            }
+            game.Phase = Phase.Shooting;
+        }
+        static void ShootingLoop(Game game)
+        {
+            var attacker = game.PlayerOrder[game.PlayerOnesTurn ? 0 : 1];
+            var defender = game.PlayerOrder[game.PlayerOnesTurn ? 1 : 0];
+
+            attacker.AddUnitsToAct(attacker.Units.FindAll((unit) => unit.RemainingModels > 0 && unit.RangedWeapons.Count != 0));
+            while (attacker.UnitsToAct.Count > 0 && defender.Units.FindAll((unit) => unit.RemainingModels > 0).Count > 0)
+            {
+                var currentUnitIndex = 0;
+                var hasSelectedUnit = false;
+                while (!hasSelectedUnit)
+                {
+                    ConsoleMenu.BuildStatusMenu(game);
+                    ConsoleMenu.ListUnits(attacker.UnitsToAct, currentUnitIndex, "Select a unit to attack: ");
+                    (currentUnitIndex, hasSelectedUnit, var KeyPressed) = ConsoleMenu.ListKeyListener(currentUnitIndex, attacker.UnitsToAct.Count - 1);
                 }
                 var selectedUnit = attacker.UnitsToAct[currentUnitIndex];
                 attacker.UnitsToAct.Remove(selectedUnit);
-                var rangeWeapons = selectedUnit.RangedWeapons;
-                while (rangeWeapons.Count != 0)
+                var rangeWeapons = new List<Weapon>();
+                rangeWeapons.AddRange(selectedUnit.RangedWeapons);
+                while (rangeWeapons.Count != 0 && defender.Units.FindAll((unit) => unit.RemainingModels > 0).Count > 0)
                 {
                     var currentWeaponIndex = 0;
                     var hasSelectedWeapon = false;
                     while (!hasSelectedWeapon)
                     {
-                        ConsoleMenu.BuildStartMenu(attacker, defender);
+                        ConsoleMenu.BuildStatusMenu(game);
                         ConsoleMenu.ListWeapons(rangeWeapons, currentWeaponIndex, selectedUnit.UnitName);
-                        (currentWeaponIndex, hasSelectedWeapon) = ConsoleMenu.ListKeyListener(currentWeaponIndex, rangeWeapons.Count - 1);
+                        (currentWeaponIndex, hasSelectedWeapon, var KeyPressed) = ConsoleMenu.ListKeyListener(currentWeaponIndex, rangeWeapons.Count - 1);
                     }
                     var selectedWeapon = rangeWeapons[currentWeaponIndex];
-                    rangeWeapons.Remove(rangeWeapons[currentWeaponIndex]);
+                    rangeWeapons.FindAll((wpn) => wpn.WeaponName.
+                        StartsWith(selectedWeapon.WeaponName.
+                        Split("-")[0])).
+                        ForEach((wpn) => rangeWeapons.Remove(wpn));
                     var hasSelectedTarget = false;
                     var currentTargetIndex = 0;
-                    while (!hasSelectedTarget)
+                    var remainingDefenders = defender.Units.FindAll((unit) => unit.RemainingModels > 0);
+                    while (!hasSelectedTarget && remainingDefenders.Count > 0)
                     {
-                        ConsoleMenu.BuildStartMenu(attacker, defender);
-                        ConsoleMenu.ListUnits(defender.Units, currentTargetIndex, message: "Select a target: ");
-                        (currentTargetIndex, hasSelectedTarget) = ConsoleMenu.ListKeyListener(currentTargetIndex, defender.Units.Count - 1);
+                        ConsoleMenu.BuildStatusMenu(game);
+                        ConsoleMenu.ListUnits(remainingDefenders, currentTargetIndex, message: "Select a target: ");
+                        (currentTargetIndex, hasSelectedTarget, var KeyPressed) = ConsoleMenu.ListKeyListener(currentTargetIndex, remainingDefenders.Count - 1);
                     }
-                    while (!CombatAssistant(attacker, defender, selectedUnit, selectedWeapon, defender.Units[currentTargetIndex]))
+                    while (!CombatAssistant(game, selectedUnit, selectedWeapon, remainingDefenders[currentTargetIndex]))
                     {
                         continue;
                     }
                 }
 
             }
+            game.Phase = Phase.Charge;
         }
-        static bool CombatAssistant(Player attacker, Player defender, Unit attackingUnit, Weapon attackingWeapon, Unit defendingUnit)
+        static void ChargeLoop(Game game, Player actingPlayer, Player passivePlayer)
+        {
+            actingPlayer.AddUnitsToAct(actingPlayer.Units.FindAll((unit) => unit.RemainingModels > 0 && unit.CanCharge));
+            while (actingPlayer.UnitsToAct.Count > 0 && passivePlayer.Units.FindAll((unit) => unit.RemainingModels > 0).Count > 0)
+            {
+                var currentUnitIndex = 0;
+                var hasSelectedUnit = false;
+                while (!hasSelectedUnit)
+                {
+                    ConsoleMenu.BuildStatusMenu(game);
+                    ConsoleMenu.ListUnits(actingPlayer.UnitsToAct, currentUnitIndex, "Select a unit to charge: ");
+                    (currentUnitIndex, hasSelectedUnit, var keyPressed) = ConsoleMenu.ListKeyListener(currentUnitIndex, actingPlayer.UnitsToAct.Count - 1);
+                    if (keyPressed == ConsoleKey.End)
+                    {
+                        actingPlayer.UnitsToAct.Clear();
+                        game.Phase = Phase.Command;
+                        return;
+                    }
+                }
+                var selectedUnit = actingPlayer.UnitsToAct[currentUnitIndex];
+                actingPlayer.UnitsToAct.Remove(selectedUnit);
+
+                var hasSelectedTarget = false;
+                var currentTargetIndex = 0;
+                var chargeableUnits = passivePlayer.Units.FindAll((unit) => unit.RemainingModels > 0);
+                while (!hasSelectedTarget && chargeableUnits.Count > 0)
+                {
+                    ConsoleMenu.BuildStatusMenu(game);
+                    ConsoleMenu.ListUnits(chargeableUnits, currentTargetIndex, message: "Select a target to charge: ");
+                    (currentTargetIndex, hasSelectedTarget, var KeyPressed) = ConsoleMenu.ListKeyListener(currentTargetIndex, chargeableUnits.Count - 1);
+                }
+                while (!ChargeAssistant(game, selectedUnit, chargeableUnits[currentTargetIndex]))
+            }
+            game.Phase = Phase.Fight;
+        }
+        static void FightLoop(Game game, Player actingPlayer, Player passivePlayer)
+        {
+
+
+            if (actingPlayer.PlayerName == game.PlayerOrder[0].PlayerName) game.Phase = Phase.Charge;
+            else game.Phase = Phase.Command;
+        }
+        static bool ChargeAssistant(Game game, Unit selectedUnit, Unit unitBeingCharged)
+        {
+            var hasRolledChargeDistance = false;
+            var submit = false;
+            while (!submit)
+            {
+                // render charge menu that instructs player to roll dice and select if they had a successful charge
+                // if yes then engage both units in melee combat with each other
+                // if no then exit while loop
+            }
+            return true;
+        }
+        static bool CombatAssistant(Game game, Unit attackingUnit, Weapon attackingWeapon, Unit defendingUnit)
         {
             var hits = 0;
             var modelsAttacking = 3;
             var haveHitsRolled = false;
             var modelsKilled = 0;
             var additionalWounds = 0;
-            var selectedItem = "models";
+            var selectedItem = defendingUnit.RemainingModels > 1 || defendingUnit.RemainingModels == 1 && defendingUnit.WoundsPerModel == 1 ? "models" : "wounds";
             var submit = false;
             while (!submit)
             {
-                ConsoleMenu.BuildStartMenu(attacker, defender);
+                ConsoleMenu.BuildStatusMenu(game);
                 if (!haveHitsRolled) ConsoleMenu.BuildHitMenu(attackingUnit, attackingWeapon, modelsAttacking, defendingUnit, hits);
                 else if (haveHitsRolled && hits > 0) ConsoleMenu.BuildAttackMenu(attackingUnit, attackingWeapon, modelsAttacking, defendingUnit, hits, modelsKilled, additionalWounds, selectedItem);
                 else break;
@@ -427,17 +606,30 @@
                 {
                     if (haveHitsRolled)
                     {
-                        if (selectedItem == "models") modelsKilled = Int32.Parse(modelsKilled.ToString() + result.ToString());
-                        else if (selectedItem == "wounds") additionalWounds = Int32.Parse(additionalWounds.ToString() + result.ToString());
+                        if (selectedItem == "models") modelsKilled = Utility.FormatAddNumberEntry(modelsKilled, result);
+                        else if (selectedItem == "wounds") additionalWounds = Utility.FormatAddNumberEntry(additionalWounds, result);
                     }
-                    else hits = Int32.Parse(hits.ToString() + result.ToString());
+                    else hits = Utility.FormatAddNumberEntry(hits, result);
                 }
                 else if (key.Key == ConsoleKey.Enter)
                 {
                     if (haveHitsRolled)
                     {
-                        if (selectedItem == "models") selectedItem = "wounds";
-                        else if (selectedItem == "wounds") submit = true;
+                        if (selectedItem == "models")
+                        {
+                            if (defendingUnit.WoundsPerModel > 1 &&
+                                defendingUnit.RemainingModels > 1 &&
+                                modelsKilled < defendingUnit.RemainingModels
+                            )
+                            {
+                                selectedItem = "wounds";
+                            }
+                            else
+                            {
+                                submit = true;
+                            }
+                        }
+                        else if (selectedItem == "wounds") { submit = true; }
                     }
                     else haveHitsRolled = true;
                 }
@@ -454,10 +646,10 @@
                 {
                     if (haveHitsRolled)
                     {
-                        if (selectedItem == "models") modelsKilled = Int32.Parse(modelsKilled.ToString().Substring(0, modelsKilled.ToString().Length - 1));
-                        else if (selectedItem == "wounds") additionalWounds = Int32.Parse(additionalWounds.ToString().Substring(0, additionalWounds.ToString().Length - 1));
+                        if (selectedItem == "models") modelsKilled = Utility.FormatRemoveNumberEntry(modelsKilled);
+                        else if (selectedItem == "wounds") additionalWounds = Utility.FormatRemoveNumberEntry(additionalWounds);
                     }
-                    else hits = Int32.Parse(hits.ToString().Substring(0, hits.ToString().Length - 1));
+                    else hits = Utility.FormatRemoveNumberEntry(hits);
                 }
                 else
                 {
@@ -465,7 +657,6 @@
                 }
             }
             defendingUnit.ResolveAttack(modelsKilled, additionalWounds);
-
             return true;
         }
     }

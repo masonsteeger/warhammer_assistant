@@ -4,7 +4,7 @@ public class Game
 {
     public int CurrentRound { get; set; }
     public Phase Phase { get; set; }
-    public int CurrentPlayersTurn { get; set; } // index of PlayerOrder list
+    public bool PlayerOnesTurn { get; set; } // index of PlayerOrder list
     public List<Player> PlayerOrder { get; }
 
     public Game(Player Player1, Player Player2)
@@ -14,7 +14,7 @@ public class Game
             Player1,
             Player2
         };
-        CurrentPlayersTurn = 0;
+        PlayerOnesTurn = true;
         CurrentRound = 1;
         Phase = Phase.Command;
     }
