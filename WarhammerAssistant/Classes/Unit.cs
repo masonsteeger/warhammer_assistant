@@ -48,7 +48,6 @@ public class Unit
         this.IsDestroyed = false;
         this.WoundsPerModel = WoundsPerModel;
         IsBattleShocked = false;
-        IsLockedInCombat = null;
         CanShoot = true;
         CanCharge = true;
         IsLockedInCombat = new List<Unit>();
@@ -101,35 +100,57 @@ public class Unit
     }
     public void Moved()
     {
-        this.IsLockedInCombat = null;
+        this.IsLockedInCombat = new List<Unit>();
         this.CanShoot = true;
         this.CanCharge = true;
     }
     public void Advanced()
     {
-        this.IsLockedInCombat = null;
+        this.IsLockedInCombat = new List<Unit>();
         this.CanShoot = false;
         this.CanCharge = false;
     }
     public void FellBack()
     {
-        this.IsLockedInCombat = null;
+        foreach (Unit unit in this.IsLockedInCombat)
+        {
+            unit.IsLockedInCombat.Remove(this);
+            unit.CanCharge = true;
+        }
+        this.IsLockedInCombat = new List<Unit>();
         this.CanShoot = false;
         this.CanCharge = false;
     }
     public void RemainedStationary()
     {
         this.CanShoot = true;
-        this.CanCharge = true;
+        if (this.IsLockedInCombat.Count == 0)
+        {
+
+            this.CanCharge = true;
+        }
     }
 
     public void EngageInMelee(Unit unit)
     {
-        this.IsLockedInCombat.Add(unit);
+        if (!this.IsLockedInCombat.Contains(unit))
+        {
+            this.IsLockedInCombat.Add(unit);
+            unit.IsLockedInCombat.Add(this);
+            unit.CanCharge = false;
+            this.CanCharge = false;
+
+        }
     }
     public void LeaveMeleeCombat(Unit unit)
     {
-        this.IsLockedInCombat.Remove(unit);
+        if (this.IsLockedInCombat.Contains(unit))
+        {
+            this.IsLockedInCombat.Remove(unit);
+            unit.IsLockedInCombat.Remove(this);
+            unit.CanCharge = true;
+            this.CanCharge = true;
+        }
     }
     public void ResolveAttack(int modelsDestroyed, int additionalWounds)
     {

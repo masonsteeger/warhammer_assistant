@@ -426,7 +426,7 @@
                 player.UnitsToAct.Remove(selectedUnit);
 
                 var movementOptions = new List<string>() { };
-                if (selectedUnit.IsLockedInCombat != null)
+                if (selectedUnit.IsLockedInCombat.Count != 0)
                 {
                     if (selectedUnit.IsBattleShocked)
                     {
@@ -484,7 +484,7 @@
             var attacker = game.PlayerOrder[game.PlayerOnesTurn ? 0 : 1];
             var defender = game.PlayerOrder[game.PlayerOnesTurn ? 1 : 0];
 
-            attacker.AddUnitsToAct(attacker.Units.FindAll((unit) => unit.RemainingModels > 0 && unit.RangedWeapons.Count != 0));
+            attacker.AddUnitsToAct(attacker.Units.FindAll((unit) => unit.RemainingModels > 0 && unit.RangedWeapons.Count != 0 && unit.CanShoot));
             while (attacker.UnitsToAct.Count > 0 && defender.Units.FindAll((unit) => unit.RemainingModels > 0).Count > 0)
             {
                 var currentUnitIndex = 0;
@@ -564,13 +564,14 @@
                     (currentTargetIndex, hasSelectedTarget, var KeyPressed) = ConsoleMenu.ListKeyListener(currentTargetIndex, chargeableUnits.Count - 1);
                 }
                 while (!ChargeAssistant(game, selectedUnit, chargeableUnits[currentTargetIndex]))
+                {
+                    continue;
+                }
             }
             game.Phase = Phase.Fight;
         }
         static void FightLoop(Game game, Player actingPlayer, Player passivePlayer)
         {
-
-
             if (actingPlayer.PlayerName == game.PlayerOrder[0].PlayerName) game.Phase = Phase.Charge;
             else game.Phase = Phase.Command;
         }
@@ -578,11 +579,26 @@
         {
             var hasRolledChargeDistance = false;
             var submit = false;
+            var selectedIndex = 0;
             while (!submit)
             {
+                ConsoleMenu.BuildStatusMenu(game);
                 // render charge menu that instructs player to roll dice and select if they had a successful charge
                 // if yes then engage both units in melee combat with each other
                 // if no then exit while loop
+                ConsoleMenu.BuildChargeMenu(selectedUnit, unitBeingCharged, selectedIndex);
+                (selectedIndex, submit, var KeyPressed) = ConsoleMenu.ListKeyListener(selectedIndex, 1);
+                if (KeyPressed == ConsoleKey.Enter)
+                {
+                    if (selectedIndex == 0)
+                    {
+                        continue;
+                    }
+                    else if (selectedIndex == 1)
+                    {
+                        selectedUnit.EngageInMelee(unitBeingCharged);
+                    }
+                }
             }
             return true;
         }

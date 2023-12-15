@@ -32,7 +32,7 @@ public class ConsoleMenu
             var isWarlord = unit.IsWarlord ? "\u2b50  " : "";
             var deathStatus = unit.IsDestroyed ? "\u2620  " : "";
             var battleShocked = unit.IsBattleShocked ? "\u26A1  " : "";
-            var isLockedInCombat = unit.IsLockedInCombat != null ? "\u2694  " : "";
+            var isLockedInCombat = unit.IsLockedInCombat.Count != 0 ? "\u2694  " + unit.IsLockedInCombat.Count : "";
             var isInReserves = unit.IsInReserves ? "\u2699" : "";
 
             return new Cell(new List<Element>(){
@@ -339,6 +339,20 @@ public class ConsoleMenu
           new Div(" ") { Padding = new Thickness(0, 0, 0, 1) }
         )
         { Margin = new Thickness(1, 0, 1, 0) }
+        );
+        ConsoleRenderer.RenderDocument(doc);
+    }
+
+    public static void BuildChargeMenu(Unit charger, Unit beingCharged, int selectedIndex)
+    {
+        var doc = new Document(
+            new Div(
+            new Span(charger.UnitName) { Color = ConsoleColor.Green },
+            " is charging ", new Span(beingCharged.UnitName) { Color = ConsoleColor.Red },
+            String.Format("\nRoll 2D6 to determine the charge distance.\nIf the rolled distance is greater than or equal to the distance between the two units the charge is successful.\nSelect YES if the charge was successful and NO if the charge failed\n"),
+            new Span(String.Format("\n{0} NO\n", 0 == selectedIndex ? ">" : "")) { Color = 0 == selectedIndex ? ConsoleColor.Green : ConsoleColor.Gray },
+            new Span(String.Format("\n{0} YES\n", 1 == selectedIndex ? ">" : "")) { Color = 1 == selectedIndex ? ConsoleColor.Green : ConsoleColor.Gray })
+            { Margin = new Thickness(1, 0, 1, 0) }
         );
         ConsoleRenderer.RenderDocument(doc);
     }
